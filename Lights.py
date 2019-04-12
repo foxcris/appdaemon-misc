@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import time, datetime, timedelta
 from Helper import BaseClass
 
 
@@ -9,11 +9,20 @@ class BasementLights(BaseClass):
         self._handle_motion_sensor = self.listen_state(
             self._motion_detected,
             "binary_sensor.basementstairs_motion_sensor_sensor")
+        self._handle_motion_sensor_burglar = self.listen_state(
+            self._motion_detected,
+            "sensor.basementstairs_motion_sensor_burglar")
         self._handle_switch_basementpantry = self.listen_state(
             self._switch_basement_changed, "switch.basementpantry")
         self._handle_switch_basementstairsdownstairs = self.listen_state(
             self._switch_basementstairsdownstairs_changed,
             "switch.basementstairsdownstairs_2")
+        # self._handle_motion_sensor = self.listen_state(
+        #    self._get_all_events)
+
+    def _get_all_events(self, entityid, attribute, old, new, kwargs):
+        self._log_debug(
+            "%s %s %s %s" % (entityid, attribute, old, new))
 
     def _switch_basement_changed(self, entityid, attribute, old, new, kwargs):
         self._log_debug("switch_basement_changed")
@@ -37,6 +46,14 @@ class BasementLights(BaseClass):
                 self.call_service(
                     "switch/turn_off",
                     entity_id="switch.basementstairsdownstairs_2")
+            # motion sensor künstlich zurück setzen
+            if self.get_state(
+                    "binary_sensor.basementstairs_motion_sensor_sensor"
+                    ) == "on":
+                self._log_debug("Manually reset motion sensor to state 'off'")
+                self.set_state(
+                    "binary_sensor.basementstairs_motion_sensor_sensor",
+                    state="off")
 
     def _switch_basementstairsdownstairs_changed(self, entityid, attribute,
                                                  old, new, kwargs):
@@ -56,12 +73,24 @@ class BasementLights(BaseClass):
             if self.get_state("switch.basementpantry") == "on":
                 self.call_service(
                     "switch/turn_off", entity_id="switch.basementpantry")
+            # motion sensor künstlich zurück setzen
+            if self.get_state(
+                    "binary_sensor.basementstairs_motion_sensor_sensor"
+                    ) == "on":
+                self._log_debug("Manually reset motion sensor to state 'off'")
+                self.set_state(
+                    "binary_sensor.basementstairs_motion_sensor_sensor",
+                    state="off")
 
     def _motion_detected(self, entityid, attribute, old, new, kwargs):
         self._log_debug("motion_detected")
         self._log_debug(
             "%s %s %s %s" % (entityid, attribute, old, new))
-        if attribute == "state" and new == "on":
+        if ((entityid == "binary_sensor.basementstairs_motion_sensor_sensor"
+             and attribute == "state" and new == "on")
+            or (
+            entityid == "binary_sensor.basementstairs_motion_sensor_burglar"
+                and attribute == "state" and new > 0)):
             # check if switch.basementstairsdownstairs_2 is on,
             # if not turn it on
             if self.get_state("switch.basementstairsdownstairs_2") == "off":
@@ -73,11 +102,14 @@ class BasementLights(BaseClass):
                 self.call_service(
                     "switch/turn_on", entity_id="switch.basementpantry")
 
-            if self._resethandle is not None:
-                self.cancel_timer(self._resethandle)
-            self._resethandle = self.run_at(
-                self._reset_lights,
-                datetime.now() + timedelta(seconds=self._resettime))
+            self._reset_motion_handle()
+
+    def _reset_motion_handle(self):
+        if self._resethandle is not None:
+            self.cancel_timer(self._resethandle)
+        self._resethandle = self.run_at(
+            self._reset_lights,
+            datetime.now() + timedelta(seconds=self._resettime))
 
     def _reset_lights(self, dtime):
         self._log_debug("reset_lights")
@@ -101,15 +133,23 @@ class LivingRoomLights(BaseClass):
         self._handle_light_livingroom_reading = self.listen_state(
             self._light_livingroom_reading_changed,
             "input_boolean.light_livingroom_reading")
-        self._handle_automatic_lights_morning_on = self.run_at_sunrise(
-            self._automatic_lights_morning_on, offset=0)
-        self._handle_automatic_lights_morning_off = self.run_at_sunrise(
-            self._automatic_lights_morning_off, offset=7200)
+        self._handle_automatic_lights_morning_on = self.run_daily(
+            self._automatic_lights_morning_on, time(5, 30, 0))
+        self._log("Time to turn on lights every day: {}"
+                  .format(time(5, 30, 0)))
+        self._handle_automatic_lights_morning_off = self.run_daily(
+            self._automatic_lights_morning_off, time(7, 0, 0))
+        self._log("Time to turn off lights every day: {}"
+                  .format(time(7, 0, 0)))
         self._handle_automatic_lights_evening_on = self.run_at_sunset(
             self._automatic_lights_evening_on, offset=0)
+        self._log("Time to turn on lights: {}"
+                  .format(self.sunset()))
         self._handle_automatic_lights_evening_off = self.run_daily(
             self._automatic_lights_evening_off,
-            datetime.today() + timedelta(hours=23))
+            time(23, 0, 0))
+        self._log("Time to turn off lights every day: {}"
+                  .format(time(23, 0, 0)))
 
     def _light_livingroom_changed(self, entityid, attribute, old, new, kwargs):
         if attribute == "state" and new == "on":
@@ -209,7 +249,7 @@ class LivingRoomLights(BaseClass):
             entity_id="input_boolean.light_livingroom_dimmed")
         self.call_service(
             "light/turn_on", entity_id="light.fireplace",
-            brightness=77, rgb_color=[255, 135, 29])
+            brightness=255, rgb_color=[255, 135, 29])
         self.call_service(
             "light/turn_on", entity_id="light.couch",
             brightness=77, rgb_color=[255, 207, 120])
@@ -230,29 +270,24 @@ class LivingRoomLights(BaseClass):
         self.call_service(
             "input_boolean/turn_on",
             entity_id="input_boolean.light_livingroom")
-        self._activate_scene("cozy")
-        self._handle_automatic_lights_morning_on = self.run_at_sunrise(
-            self._automatic_lights_morning_on, offset=0)
+        self._activate_scene("dimmed")
 
     def _automatic_lights_evening_on(self, kwargs):
         self.call_service(
             "input_boolean/turn_on",
             entity_id="input_boolean.light_livingroom")
-        self._activate_scene("cozy")
+        self._activate_scene("dimmed")
         self._handle_automatic_lights_evening_on = self.run_at_sunset(
             self._automatic_lights_evening_on, offset=0)
+        self._log("Time to turn on lights: {}"
+                  .format(self.sunset()))
 
     def _automatic_lights_morning_off(self, kwargs):
         self.call_service(
             "input_boolean/turn_off",
             entity_id="input_boolean.light_livingroom")
-        self._handle_automatic_lights_morning_off = self.run_at_sunrise(
-            self._automatic_lights_morning_off, offset=7200)
 
     def _automatic_lights_evening_off(self, kwargs):
         self.call_service(
             "input_boolean/turn_off",
             entity_id="input_boolean.light_livingroom")
-        self._handle_automatic_lights_evening_off = self.run_daily(
-            self._automatic_lights_evening_off,
-            datetime.today() + timedelta(hours=23))
