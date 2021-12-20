@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from Helper import BaseClass
+from helper.Helper import BaseClass
 
 
 class HomematicReconnect(BaseClass):
