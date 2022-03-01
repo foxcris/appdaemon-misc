@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from helper.Helper import BaseClass
-
+import re
 
 class HomematicReconnect(BaseClass):
 
@@ -17,7 +17,7 @@ class HomematicReconnect(BaseClass):
 
     def _reset_timeout(self, entityid, attribute, old, new, kwargs):
         interface = self.get_state(entityid, attribute="interface")
-        if interface is not None and interface == "pigear":
+        if interface is not None and interface == "rf":
             # self._log_debug("Reset Timeout")
             self.cancel_timer(self._reconnecthandle)
             self._reconnecthandle = self.run_at(
@@ -35,8 +35,17 @@ class HomematicBattery(BaseClass):
         self._resethandle = self.listen_state(self._check_battery)
 
     def _check_battery(self, entityid, attribute, old, new, kwargs):
+        #binary_sensor.balconythermostat_lowbat
+        #check name of entity and the state
+        if re.match('binary_sensor.*_lowbat',entityid,re.IGNORECASE) and self.get_state(entityid)=='on':
+            self._log_debug("Detecting LowBat")
+            self.call_service("telegram_bot/send_message",
+                                  message="Battery Warning!: \
+                                  Battery of entity %s is low" %
+                                  (self.get_state(
+                                      entityid, attribute="friendly_name")))
         interface = self.get_state(entityid, attribute="interface")
-        if interface is not None and interface == "pigear":
+        if interface is not None and interface == "rf":
             if attribute == "battery" and new <= self._batterylimit:
                 self._log_debug("Battery Empty")
                 self.call_service("telegram_bot/send_message",
