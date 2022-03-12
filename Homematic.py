@@ -37,7 +37,7 @@ class HomematicBattery(BaseClass):
     def _check_battery(self, entityid, attribute, old, new, kwargs):
         #binary_sensor.balconythermostat_lowbat
         #check name of entity and the state
-        if re.match('binary_sensor.*_lowbat',entityid,re.IGNORECASE) and self.get_state(entityid)=='on':
+        if re.match('binary_sensor.*_(lowbat|low_bot)',entityid,re.IGNORECASE) and self.get_state(entityid)=='on':
             self._log_debug("Detecting LowBat")
             self.call_service("telegram_bot/send_message",
                                   message="Battery Warning!: \
