@@ -1,24 +1,18 @@
 from datetime import time, datetime, timedelta
 from helper.Helper import BaseClass
 
-
 class BasementLights(BaseClass):
     def initialize(self):
-        self._resettime = 900
+        self._resettime = 1800
         self._resethandle = None
         self._handle_motion_sensor = self.listen_state(
             self._motion_detected,
-            "binary_sensor.basementstairs_motion_sensor_sensor")
-        self._handle_motion_sensor_burglar = self.listen_state(
-            self._motion_detected,
-            "sensor.basementstairs_motion_sensor_burglar")
+            "binary_sensor.motion_sensor_downstairs_home_security_motion_detection")
         self._handle_switch_basementpantry = self.listen_state(
             self._switch_basement_changed, "switch.basementpantry_2")
         self._handle_switch_basementstairsdownstairs = self.listen_state(
             self._switch_basementstairsdownstairs_changed,
             "switch.basementstairsdownstairs_2")
-        # self._handle_motion_sensor = self.listen_state(
-        #    self._get_all_events)
 
     def _get_all_events(self, entityid, attribute, old, new, kwargs):
         self._log_debug(
@@ -46,14 +40,6 @@ class BasementLights(BaseClass):
                 self.call_service(
                     "switch/turn_off",
                     entity_id="switch.basementstairsdownstairs_2")
-            # motion sensor künstlich zurück setzen
-            if self.get_state(
-                    "binary_sensor.basementstairs_motion_sensor_sensor"
-                    ) == "on":
-                self._log_debug("Manually reset motion sensor to state 'off'")
-                self.set_state(
-                    "binary_sensor.basementstairs_motion_sensor_sensor",
-                    state="off")
 
     def _switch_basementstairsdownstairs_changed(self, entityid, attribute,
                                                  old, new, kwargs):
@@ -73,14 +59,6 @@ class BasementLights(BaseClass):
             if self.get_state("switch.basementpantry_2") == "on":
                 self.call_service(
                     "switch/turn_off", entity_id="switch.basementpantry_2")
-            # motion sensor künstlich zurück setzen
-            if self.get_state(
-                    "binary_sensor.basementstairs_motion_sensor_sensor"
-                    ) == "on":
-                self._log_debug("Manually reset motion sensor to state 'off'")
-                self.set_state(
-                    "binary_sensor.basementstairs_motion_sensor_sensor",
-                    state="off")
 
     def _motion_detected(self, entityid, attribute, old, new, kwargs):
         self._log_debug("motion_detected")
